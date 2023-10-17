@@ -203,6 +203,14 @@ var (
 		Description: `{{ template "jira.default.description" . }}`,
 		Priority:    `{{ template "jira.default.priority" . }}`,
 	}
+
+	DefaultGoogleChatConfig = GoogleChatConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Message:   `{{ template "googlechat.default.message" . }}`,
+		Threading: true,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -995,4 +1003,23 @@ func (c *RocketchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) erro
 		return errors.New("at most one of token_id & token_id_file must be configured")
 	}
 	return nil
+}
+
+// GoogleChatConfig configures notifications via Discord.
+type GoogleChatConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	URL        *SecretURL                  `yaml:"url,omitempty" json:"url,omitempty"`
+	URLFile    string                      `yaml:"url_file" json:"url_file"`
+
+	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
+	Threading bool   `yaml:"threading,omitempty" json:"threading,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *GoogleChatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultGoogleChatConfig
+	type plain GoogleChatConfig
+	return unmarshal((*plain)(c))
 }
