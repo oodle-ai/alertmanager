@@ -15,13 +15,16 @@ package template
 
 import (
 	"bytes"
+	"fmt"
 	tmplhtml "html/template"
 	"io"
+	"math"
 	"net/url"
 	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	tmpltext "text/template"
 	"time"
@@ -29,6 +32,7 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 
 	"github.com/prometheus/alertmanager/asset"
 	"github.com/prometheus/alertmanager/types"
@@ -191,6 +195,43 @@ var DefaultFuncs = FuncMap{
 	},
 	"stringSlice": func(s ...string) []string {
 		return s
+	},
+	"humanizeFloat": func(val string) (string, error) {
+		f, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			return "", err
+		}
+
+		// Format human readable version with suffix
+		var suffix string
+		var readable float64
+		abf := math.Abs(f)
+		switch {
+		case abf >= 1e6:
+			suffix = "m"
+			readable = f / 1e6
+		case abf >= 1e3:
+			suffix = "k"
+			readable = f / 1e3
+		default:
+			// For numbers without suffix, just format with commas
+			p := message.NewPrinter(language.English)
+			// Remove trailing zeros but keep decimal point if there are remaining decimals
+			s := strings.TrimRight(p.Sprintf("%.3f", f), "0")
+			if strings.HasSuffix(s, ".") {
+				s = strings.TrimSuffix(s, ".")
+			}
+			return s, nil
+		}
+
+		// Format with suffix
+		p := message.NewPrinter(language.English)
+		precise := strings.TrimRight(strings.TrimRight(p.Sprintf("%.3f", f), "0"), ".")
+
+		// Format readable part with one decimal place and trim if whole number
+		readableStr := strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.1f", readable), "0"), ".")
+
+		return fmt.Sprintf("%s%s (%s)", readableStr, suffix, precise), nil
 	},
 }
 
