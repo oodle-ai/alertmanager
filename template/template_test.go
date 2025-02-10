@@ -523,3 +523,62 @@ func TestTemplateFuncs(t *testing.T) {
 		})
 	}
 }
+
+func TestHumanizeFloat(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+		wantErr  bool
+	}{
+		// Normal numbers
+		{"123", "123", false},
+		{"123.456", "123.456", false},
+		{"0.123456", "0.123", false},
+
+		// Numbers with suffixes
+		{"1234", "1.2k (1,234)", false},
+		{"1234567", "1.2m (1,234,567)", false},
+		{"1234567.89", "1.2m (1,234,567.89)", false},
+		{"9.85369745e+06", "9.9m (9,853,697.45)", false},
+
+		// Edge cases
+		{"999.9", "999.9", false},
+		{"1000", "1k (1,000)", false},
+		{"1000000", "1m (1,000,000)", false},
+
+		// Negative numbers
+		{"-1234", "-1.2k (-1,234)", false},
+		{"-1234567", "-1.2m (-1,234,567)", false},
+
+		// Small decimals
+		{"0.01234", "0.012", false},
+		{"0", "0", false},
+
+		// Error cases
+		{"invalid", "", true},
+		{"1.2.3", "", true},
+		{"", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result, err := DefaultFuncs["humanizeFloat"].(func(string) (string, error))(tt.input)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("humanizeFloat(%q) expected error but got none", tt.input)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("humanizeFloat(%q) unexpected error: %v", tt.input, err)
+				return
+			}
+
+			if result != tt.expected {
+				t.Errorf("humanizeFloat(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
