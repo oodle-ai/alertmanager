@@ -184,8 +184,7 @@ func TestGooglechatCardMode(t *testing.T) {
 		CardSubtitle: "Critical | Firing 1",
 		CardImageURL: "https://oodle.ai/img/logo.svg",
 		CardMessage:  "CPU usage exceeded threshold",
-		CardDetails:  "Severity: Critical\nThreshold: 95%\nMetric Value: 98.2%",
-		CardLabels:   "cluster: prod-us-east-1\nnamespace: api-server",
+		CardDetails:  "cluster: prod-us-east-1\nnamespace: api-server\nSeverity: Critical\nThreshold: 95%\nMetric Value: 98.2%",
 		CardActions:  "View Alert|https://app.oodle.ai/alerts/123\nAI Insights|https://app.oodle.ai/insights/123",
 	}
 
@@ -231,10 +230,10 @@ func TestGooglechatCardMode(t *testing.T) {
 	require.Equal(t, "Critical | Firing 1", header["subtitle"])
 	require.Equal(t, "https://oodle.ai/img/logo.svg", header["imageUrl"])
 
-	// Verify sections exist: message, labels, details, actions
+	// Verify sections exist: message, details, actions
 	sections, ok := card["sections"].([]interface{})
 	require.True(t, ok)
-	require.Len(t, sections, 4)
+	require.Len(t, sections, 3)
 }
 
 func TestGooglechatTextFallback(t *testing.T) {
@@ -286,8 +285,7 @@ func TestBuildCard(t *testing.T) {
 			"Critical",
 			"https://example.com/icon.png",
 			"Something went wrong",
-			"Severity: Critical\nThreshold: 95%",
-			"cluster: prod\nregion: us-east-1\nservice: api",
+			"cluster: prod\nregion: us-east-1\nSeverity: Critical\nThreshold: 95%",
 			"View|https://example.com\nEdit|https://example.com/edit",
 		)
 
@@ -296,55 +294,46 @@ func TestBuildCard(t *testing.T) {
 		require.Equal(t, "Critical", card.Header.Subtitle)
 		require.Equal(t, "https://example.com/icon.png", card.Header.ImageURL)
 
-		// message + details + labels + actions = 4 sections
-		require.Len(t, card.Sections, 4)
+		// message + details + actions = 3 sections
+		require.Len(t, card.Sections, 3)
 
 		// Message section
 		require.NotNil(t, card.Sections[0].Widgets[0].TextParagraph)
 		require.Equal(t, "Something went wrong", card.Sections[0].Widgets[0].TextParagraph.Text)
 
-		// Labels section (collapsible, before details)
-		require.Equal(t, "Labels", card.Sections[1].Header)
+		// Details section (collapsible)
+		require.Equal(t, "Details", card.Sections[1].Header)
 		require.True(t, card.Sections[1].Collapsible)
 		require.Equal(t, 2, card.Sections[1].UncollapsibleWidgetsCount)
-		require.Len(t, card.Sections[1].Widgets, 3)
-
-		// Details section (collapsible)
-		require.Equal(t, "Alert Details", card.Sections[2].Header)
-		require.True(t, card.Sections[2].Collapsible)
-		require.Equal(t, 0, card.Sections[2].UncollapsibleWidgetsCount)
-		require.Len(t, card.Sections[2].Widgets, 2)
-		require.Equal(t, "Severity", card.Sections[2].Widgets[0].DecoratedText.TopLabel)
-		require.Equal(t, "Critical", card.Sections[2].Widgets[0].DecoratedText.Text)
+		require.Len(t, card.Sections[1].Widgets, 4)
+		require.Equal(t, "cluster", card.Sections[1].Widgets[0].DecoratedText.TopLabel)
+		require.Equal(t, "prod", card.Sections[1].Widgets[0].DecoratedText.Text)
 
 		// Actions section
-		require.Len(t, card.Sections[3].Widgets, 1)
-		require.NotNil(t, card.Sections[3].Widgets[0].ButtonList)
-		require.Len(t, card.Sections[3].Widgets[0].ButtonList.Buttons, 2)
-		require.Equal(t, "View", card.Sections[3].Widgets[0].ButtonList.Buttons[0].Text)
-		require.Equal(t, "https://example.com", card.Sections[3].Widgets[0].ButtonList.Buttons[0].OnClick.OpenLink.URL)
+		require.Len(t, card.Sections[2].Widgets, 1)
+		require.NotNil(t, card.Sections[2].Widgets[0].ButtonList)
+		require.Len(t, card.Sections[2].Widgets[0].ButtonList.Buttons, 2)
+		require.Equal(t, "View", card.Sections[2].Widgets[0].ButtonList.Buttons[0].Text)
+		require.Equal(t, "https://example.com", card.Sections[2].Widgets[0].ButtonList.Buttons[0].OnClick.OpenLink.URL)
 	})
 
 	t.Run("empty fields produce no sections", func(t *testing.T) {
-		card := buildCard("Title", "", "", "", "", "", "")
+		card := buildCard("Title", "", "", "", "", "")
 		require.NotNil(t, card.Header)
 		require.Len(t, card.Sections, 0)
 	})
 
 	t.Run("handles malformed lines", func(t *testing.T) {
-		card := buildCard("", "", "", "", "no-colon-here\n\nvalid: line", "also bad\nk: v", "no-pipe\nLabel|https://url.com")
-		// labels first: 1 valid widget
-		require.Len(t, card.Sections[0].Widgets, 1)
-		require.Equal(t, "k", card.Sections[0].Widgets[0].DecoratedText.TopLabel)
+		card := buildCard("", "", "", "", "no-colon-here\n\nvalid: line", "no-pipe\nLabel|https://url.com")
 		// details: 1 valid widget
-		require.Len(t, card.Sections[1].Widgets, 1)
-		require.Equal(t, "valid", card.Sections[1].Widgets[0].DecoratedText.TopLabel)
+		require.Len(t, card.Sections[0].Widgets, 1)
+		require.Equal(t, "valid", card.Sections[0].Widgets[0].DecoratedText.TopLabel)
 		// actions: 1 valid button
-		require.Len(t, card.Sections[2].Widgets[0].ButtonList.Buttons, 1)
+		require.Len(t, card.Sections[1].Widgets[0].ButtonList.Buttons, 1)
 	})
 
 	t.Run("value containing delimiter", func(t *testing.T) {
-		card := buildCard("", "", "", "", "url: https://example.com:8080/path", "", "")
+		card := buildCard("", "", "", "", "url: https://example.com:8080/path", "")
 		require.Len(t, card.Sections[0].Widgets, 1)
 		require.Equal(t, "url", card.Sections[0].Widgets[0].DecoratedText.TopLabel)
 		require.Equal(t, "https://example.com:8080/path", card.Sections[0].Widgets[0].DecoratedText.Text)

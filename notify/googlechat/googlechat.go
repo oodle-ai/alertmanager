@@ -128,7 +128,7 @@ type openLink struct {
 
 type divider struct{}
 
-func buildCard(title, subtitle, imageURL, message, details, labels, actions string) *cardBody {
+func buildCard(title, subtitle, imageURL, message, details, actions string) *cardBody {
 	card := &cardBody{}
 
 	if title != "" {
@@ -149,26 +149,14 @@ func buildCard(title, subtitle, imageURL, message, details, labels, actions stri
 		})
 	}
 
-	if labels != "" {
-		widgets := parseKeyValueWidgets(labels)
-		if len(widgets) > 0 {
-			card.Sections = append(card.Sections, section{
-				Header:                    "Labels",
-				Widgets:                   widgets,
-				Collapsible:               true,
-				UncollapsibleWidgetsCount: 2,
-			})
-		}
-	}
-
 	if details != "" {
 		widgets := parseKeyValueWidgets(details)
 		if len(widgets) > 0 {
 			card.Sections = append(card.Sections, section{
-				Header:                    "Alert Details",
+				Header:                    "Details",
 				Widgets:                   widgets,
 				Collapsible:               true,
-				UncollapsibleWidgetsCount: 0,
+				UncollapsibleWidgetsCount: 2,
 			})
 		}
 	}
@@ -250,7 +238,6 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	cardImageURL := tmpl(n.conf.CardImageURL)
 	cardMessage := tmpl(n.conf.CardMessage)
 	cardDetails := tmpl(n.conf.CardDetails)
-	cardLabels := tmpl(n.conf.CardLabels)
 	cardActions := tmpl(n.conf.CardActions)
 
 	if err != nil {
@@ -258,7 +245,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	}
 
 	var buf bytes.Buffer
-	card := buildCard(cardTitle, cardSubtitle, cardImageURL, cardMessage, cardDetails, cardLabels, cardActions)
+	card := buildCard(cardTitle, cardSubtitle, cardImageURL, cardMessage, cardDetails, cardActions)
 	if card.Header != nil || len(card.Sections) > 0 {
 		payload := cardPayload{
 			CardsV2: []cardV2{

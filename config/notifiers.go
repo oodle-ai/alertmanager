@@ -197,7 +197,6 @@ var (
 		CardImageURL: `{{ template "googlechat.card.image_url" . }}`,
 		CardMessage:  `{{ template "googlechat.card.message" . }}`,
 		CardDetails:  `{{ template "googlechat.card.details" . }}`,
-		CardLabels:   `{{ template "googlechat.card.labels" . }}`,
 		CardActions:  `{{ template "googlechat.card.actions" . }}`,
 	}
 )
@@ -894,14 +893,13 @@ type GoogleChatConfig struct {
 	Threading bool   `yaml:"threading,omitempty" json:"threading,omitempty"`
 
 	// Cards v2 fields. When any content field (CardTitle, CardMessage,
-	// CardDetails, CardLabels, or CardActions) renders to a non-empty
-	// string, the notifier sends a cardsV2 payload instead of plain text.
+	// CardDetails, or CardActions) renders to a non-empty string, the
+	// notifier sends a cardsV2 payload instead of plain text.
 	CardTitle    string `yaml:"card_title,omitempty" json:"card_title,omitempty"`
 	CardSubtitle string `yaml:"card_subtitle,omitempty" json:"card_subtitle,omitempty"`
 	CardImageURL string `yaml:"card_image_url,omitempty" json:"card_image_url,omitempty"`
 	CardMessage  string `yaml:"card_message,omitempty" json:"card_message,omitempty"`
 	CardDetails  string `yaml:"card_details,omitempty" json:"card_details,omitempty"`
-	CardLabels   string `yaml:"card_labels,omitempty" json:"card_labels,omitempty"`
 	CardActions  string `yaml:"card_actions,omitempty" json:"card_actions,omitempty"`
 }
 
