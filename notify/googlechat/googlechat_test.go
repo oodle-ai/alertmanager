@@ -332,6 +332,17 @@ func TestBuildCard(t *testing.T) {
 		require.Len(t, card.Sections[1].Widgets[0].ButtonList.Buttons, 1)
 	})
 
+	t.Run("divider separates groups", func(t *testing.T) {
+		card := buildCard("", "", "", "", "cluster: prod\n---\nhost: server-1\nMetric Value: 98%\n---\nhost: server-2\nMetric Value: 97%", "")
+		require.Len(t, card.Sections[0].Widgets, 7)
+		require.NotNil(t, card.Sections[0].Widgets[0].DecoratedText)
+		require.Equal(t, "prod", card.Sections[0].Widgets[0].DecoratedText.Text)
+		require.NotNil(t, card.Sections[0].Widgets[1].Divider)
+		require.NotNil(t, card.Sections[0].Widgets[2].DecoratedText)
+		require.Equal(t, "server-1", card.Sections[0].Widgets[2].DecoratedText.Text)
+		require.NotNil(t, card.Sections[0].Widgets[4].Divider)
+	})
+
 	t.Run("value containing delimiter", func(t *testing.T) {
 		card := buildCard("", "", "", "", "url: https://example.com:8080/path", "")
 		require.Len(t, card.Sections[0].Widgets, 1)

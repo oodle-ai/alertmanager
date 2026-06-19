@@ -180,6 +180,10 @@ func parseKeyValueWidgets(s string) []widget {
 		if line == "" {
 			continue
 		}
+		if line == "---" {
+			widgets = append(widgets, widget{Divider: &divider{}})
+			continue
+		}
 		parts := strings.SplitN(line, ": ", 2)
 		if len(parts) != 2 {
 			continue
