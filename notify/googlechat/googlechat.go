@@ -129,9 +129,14 @@ type openLink struct {
 
 type divider struct{}
 
-// Google Chat enforces a ~32 KB total message size limit.
-// We use a conservative threshold to avoid edge cases with encoding overhead.
-const maxPayloadBytes = 24576 // 24 KB
+const (
+	// Google Chat enforces a ~32 KB total message size limit.
+	// We use a conservative threshold to avoid edge cases with encoding overhead.
+	maxPayloadBytes = 24576 // 24 KB
+
+	// Google Chat silently drops card sections when widget count is too high.
+	maxWidgets = 50
+)
 
 func truncateUTF8(s string, maxBytes int) string {
 	if len(s) <= maxBytes {
@@ -171,6 +176,12 @@ func buildCard(title, subtitle, imageURL, message, details, actions string) *car
 
 	if details != "" {
 		widgets := parseKeyValueWidgets(details)
+		if len(widgets) > maxWidgets {
+			widgets = widgets[:maxWidgets]
+			widgets = append(widgets, widget{
+				TextParagraph: &textParagraph{Text: "… more alerts not shown"},
+			})
+		}
 		if len(widgets) > 0 {
 			card.Sections = append(card.Sections, section{
 				Header:                    "Details",

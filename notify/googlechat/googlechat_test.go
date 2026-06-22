@@ -351,6 +351,18 @@ func TestBuildCard(t *testing.T) {
 		require.Equal(t, "url", card.Sections[0].Widgets[0].DecoratedText.TopLabel)
 		require.Equal(t, "https://example.com:8080/path", card.Sections[0].Widgets[0].DecoratedText.Text)
 	})
+
+	t.Run("widgets capped at maxWidgets", func(t *testing.T) {
+		var lines []string
+		for i := 0; i < 100; i++ {
+			lines = append(lines, fmt.Sprintf("key-%d: val-%d", i, i))
+		}
+		card := buildCard("Title", "", "", "", strings.Join(lines, "\n"), "")
+		require.Len(t, card.Sections[0].Widgets, maxWidgets+1)
+		last := card.Sections[0].Widgets[maxWidgets]
+		require.NotNil(t, last.TextParagraph)
+		require.Contains(t, last.TextParagraph.Text, "more alerts not shown")
+	})
 }
 
 func TestTruncateUTF8(t *testing.T) {
