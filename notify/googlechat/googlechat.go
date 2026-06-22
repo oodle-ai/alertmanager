@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
@@ -127,6 +128,25 @@ type openLink struct {
 }
 
 type divider struct{}
+
+// Google Chat enforces a ~32 KB total message size limit.
+// We use a conservative threshold to avoid edge cases with encoding overhead.
+const maxPayloadBytes = 24576 // 24 KB
+
+func truncateUTF8(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	const suffix = "\n… [truncated]"
+	cut := maxBytes - len(suffix)
+	if cut <= 0 {
+		return ""
+	}
+	for !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + suffix
+}
 
 func buildCard(title, subtitle, imageURL, message, details, actions string) *cardBody {
 	card := &cardBody{}
@@ -262,7 +282,26 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		if err := json.NewEncoder(&buf).Encode(payload); err != nil {
 			return false, err
 		}
+		if buf.Len() > maxPayloadBytes {
+			overflow := buf.Len() - maxPayloadBytes
+			if len(cardMessage) > overflow {
+				cardMessage = truncateUTF8(cardMessage, len(cardMessage)-overflow)
+			} else {
+				overflow -= len(cardMessage)
+				cardMessage = ""
+				cardDetails = truncateUTF8(cardDetails, max(0, len(cardDetails)-overflow))
+			}
+			buf.Reset()
+			card = buildCard(cardTitle, cardSubtitle, cardImageURL, cardMessage, cardDetails, cardActions)
+			payload = cardPayload{
+				CardsV2: []cardV2{{CardID: key.Hash(), Card: *card}},
+			}
+			if err := json.NewEncoder(&buf).Encode(payload); err != nil {
+				return false, err
+			}
+		}
 	} else {
+		message = truncateUTF8(message, maxPayloadBytes)
 		if err := json.NewEncoder(&buf).Encode(textMessage{Text: message}); err != nil {
 			return false, err
 		}
