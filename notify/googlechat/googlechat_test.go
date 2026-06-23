@@ -17,10 +17,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -349,4 +351,126 @@ func TestBuildCard(t *testing.T) {
 		require.Equal(t, "url", card.Sections[0].Widgets[0].DecoratedText.TopLabel)
 		require.Equal(t, "https://example.com:8080/path", card.Sections[0].Widgets[0].DecoratedText.Text)
 	})
+
+	t.Run("widgets capped at maxWidgets", func(t *testing.T) {
+		var lines []string
+		for i := 0; i < 100; i++ {
+			lines = append(lines, fmt.Sprintf("key-%d: val-%d", i, i))
+		}
+		card := buildCard("Title", "", "", "", strings.Join(lines, "\n"), "")
+		require.Len(t, card.Sections[0].Widgets, maxWidgets+1)
+		last := card.Sections[0].Widgets[maxWidgets]
+		require.NotNil(t, last.TextParagraph)
+		require.Contains(t, last.TextParagraph.Text, "more alerts not shown")
+	})
+}
+
+func TestTruncateUTF8(t *testing.T) {
+	t.Run("short string unchanged", func(t *testing.T) {
+		require.Equal(t, "hello", truncateUTF8("hello", 100))
+	})
+
+	t.Run("exact limit unchanged", func(t *testing.T) {
+		s := strings.Repeat("a", 500)
+		require.Equal(t, s, truncateUTF8(s, 500))
+	})
+
+	t.Run("over limit gets truncated", func(t *testing.T) {
+		s := strings.Repeat("a", 1000)
+		result := truncateUTF8(s, 500)
+		require.LessOrEqual(t, len(result), 500)
+		require.Contains(t, result, "… [truncated]")
+	})
+
+	t.Run("does not break multi-byte runes", func(t *testing.T) {
+		s := strings.Repeat("日本語", 100) // 3 bytes per rune
+		result := truncateUTF8(s, 50)
+		require.LessOrEqual(t, len(result), 50)
+		for i := 0; i < len(result); {
+			_, size := []rune(result[i:])[0], len(string([]rune(result[i:])[0]))
+			i += size
+		}
+	})
+}
+
+func TestGooglechatTextTruncation(t *testing.T) {
+	var receivedBody []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedBody, _ = io.ReadAll(r.Body)
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+
+	cfg := &config.GoogleChatConfig{
+		URL:        &config.SecretURL{URL: u},
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+		Message:    strings.Repeat("A", maxPayloadBytes+5000),
+	}
+
+	pd, err := New(cfg, test.CreateTmpl(t), log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "test-group")
+
+	ok, err := pd.Notify(ctx, []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "TestAlert"},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			},
+		},
+	}...)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.LessOrEqual(t, len(receivedBody), maxPayloadBytes+200)
+
+	var payload map[string]interface{}
+	require.NoError(t, json.Unmarshal(receivedBody, &payload))
+	text := payload["text"].(string)
+	require.Contains(t, text, "… [truncated]")
+}
+
+func TestGooglechatCardTruncation(t *testing.T) {
+	var receivedBody []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedBody, _ = io.ReadAll(r.Body)
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+
+	cfg := &config.GoogleChatConfig{
+		URL:        &config.SecretURL{URL: u},
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+		CardTitle:   "Alert",
+		CardMessage: strings.Repeat("B", maxPayloadBytes+5000),
+	}
+
+	pd, err := New(cfg, test.CreateTmpl(t), log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "test-group")
+
+	ok, err := pd.Notify(ctx, []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "TestAlert"},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			},
+		},
+	}...)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.LessOrEqual(t, len(receivedBody), maxPayloadBytes+200)
+
+	var payload map[string]interface{}
+	require.NoError(t, json.Unmarshal(receivedBody, &payload))
+	require.Contains(t, payload, "cardsV2")
 }
