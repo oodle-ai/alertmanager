@@ -15,6 +15,7 @@ package template
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	tmplhtml "html/template"
 	"io"
@@ -22,6 +23,7 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -33,6 +35,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/asset"
 	"github.com/prometheus/alertmanager/types"
@@ -195,6 +198,16 @@ var DefaultFuncs = FuncMap{
 	},
 	"stringSlice": func(s ...string) []string {
 		return s
+	},
+	// toJson marshals the given value to its JSON representation. It is mainly
+	// useful to embed structured data (e.g. .CommonLabels) into a custom
+	// webhook payload.
+	"toJson": func(v interface{}) (string, error) {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return "", err
+		}
+		return string(b), nil
 	},
 	"now": time.Now,
 	"unix": func(t time.Time) int64 {
@@ -455,4 +468,109 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 	}
 
 	return data
+}
+
+// TemplateFunc renders a template string against some data, returning the
+// rendered string or an error.
+type TemplateFunc func(string) (string, error)
+
+// DeepCopyWithTemplate returns a deep copy of a map/slice/array/string/int/bool or combination thereof, executing the
+// provided template (with the provided data) on all string keys or values. All maps are converted to
+// map[string]interface{}, with all non-string keys discarded.
+func DeepCopyWithTemplate(value interface{}, tmplTextFunc TemplateFunc) (interface{}, error) {
+	if value == nil {
+		return value, nil
+	}
+
+	valueMeta := reflect.ValueOf(value)
+	switch valueMeta.Kind() {
+	case reflect.String:
+		parsed, err := tmplTextFunc(value.(string))
+		if err != nil {
+			return parsed, err
+		}
+		var inlineType interface{}
+		if err := yaml.Unmarshal([]byte(parsed), &inlineType); err != nil ||
+			(inlineType != nil && reflect.TypeOf(inlineType).Kind() == reflect.String) {
+			// The rendered string is not structured data, keep it as a string.
+			return parsed, nil
+		}
+		// inlineType holds structured data decoded from the rendered string.
+		// This is already final data, so only normalize it into JSON-compatible
+		// types. It must not be passed back through DeepCopyWithTemplate, because
+		// re-templating and re-parsing its leaf values would reinterpret strings
+		// that merely look like YAML (e.g. "value1:" becoming a map).
+		return normalizeYAMLValue(inlineType), nil
+
+	case reflect.Array, reflect.Slice:
+		arrayLen := valueMeta.Len()
+		converted := make([]interface{}, arrayLen)
+		for i := 0; i < arrayLen; i++ {
+			var err error
+			converted[i], err = DeepCopyWithTemplate(valueMeta.Index(i).Interface(), tmplTextFunc)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return converted, nil
+
+	case reflect.Map:
+		keys := valueMeta.MapKeys()
+		converted := make(map[string]interface{}, len(keys))
+
+		for _, keyMeta := range keys {
+			strKey, isString := keyMeta.Interface().(string)
+			if !isString {
+				continue
+			}
+			renderedKey, err := tmplTextFunc(strKey)
+			if err != nil {
+				return nil, err
+			}
+			converted[renderedKey], err = DeepCopyWithTemplate(valueMeta.MapIndex(keyMeta).Interface(), tmplTextFunc)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return converted, nil
+
+	default:
+		return value, nil
+	}
+}
+
+// normalizeYAMLValue recursively converts a value decoded by yaml.Unmarshal into
+// JSON-compatible types: maps become map[string]interface{} (non-string keys are
+// dropped, mirroring DeepCopyWithTemplate) and slices/arrays become
+// []interface{}. Scalar leaves are returned unchanged, so values are never
+// re-templated or re-parsed. This keeps a rendered JSON payload byte-for-byte
+// faithful instead of reinterpreting string values that happen to be valid YAML.
+func normalizeYAMLValue(value interface{}) interface{} {
+	if value == nil {
+		return nil
+	}
+
+	valueMeta := reflect.ValueOf(value)
+	switch valueMeta.Kind() {
+	case reflect.Array, reflect.Slice:
+		converted := make([]interface{}, valueMeta.Len())
+		for i := range converted {
+			converted[i] = normalizeYAMLValue(valueMeta.Index(i).Interface())
+		}
+		return converted
+
+	case reflect.Map:
+		converted := make(map[string]interface{}, valueMeta.Len())
+		for _, keyMeta := range valueMeta.MapKeys() {
+			strKey, isString := keyMeta.Interface().(string)
+			if !isString {
+				continue
+			}
+			converted[strKey] = normalizeYAMLValue(valueMeta.MapIndex(keyMeta).Interface())
+		}
+		return converted
+
+	default:
+		return value
+	}
 }

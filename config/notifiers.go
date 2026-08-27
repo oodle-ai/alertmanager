@@ -528,6 +528,13 @@ type WebhookConfig struct {
 	// Alerts exceeding this threshold will be truncated. Setting this to 0
 	// allows an unlimited number of alerts.
 	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
+
+	// Payload optionally replaces the default webhook message with a fully
+	// custom payload. Every string key and value is rendered as a Go template
+	// with the standard notification data. It is the operator's responsibility
+	// to ensure the rendered payload is valid JSON in the format expected by
+	// the receiving endpoint.
+	Payload map[string]interface{} `yaml:"payload,omitempty" json:"payload,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

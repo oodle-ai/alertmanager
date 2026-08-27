@@ -1428,6 +1428,14 @@ url_file: <filepath>
 # above this threshold are truncated. When leaving this at its default value of
 # 0, all alerts are included.
 [ max_alerts: <int> | default = 0 ]
+
+# Define custom payload to be sent to the webhook endpoint.
+# USE AT YOUR OWN RISK: This is an advanced configuration option that allows you
+# to define a custom payload using Go templates. Be aware that the Alertmanager does not
+# perform any validation on the resulting payload, and it is your responsibility to
+# ensure that the generated payload is in the desired format expected by the receiving endpoint.
+# The payload has to be valid JSON. You can use the `toJson` function to help with this.
+[ payload: { <string>: <tmpl_string>, ... } ]
 ```
 
 The Alertmanager
