@@ -15,18 +15,23 @@ package webhook
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -138,4 +143,123 @@ func TestWebhookReadingURLFromFile(t *testing.T) {
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
+}
+
+type roundTripFunc func(req *http.Request) *http.Response
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req), nil
+}
+
+func testAlerts() []*types.Alert {
+	return []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"alertname": "TestAlert"},
+				Annotations:  model.LabelSet{"summary": "Test summary"},
+				StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+				EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
+				GeneratorURL: "http://generator.url",
+			},
+		},
+	}
+}
+
+// capturePayload posts the given config's notification and returns the raw
+// request body that would have been sent to the webhook endpoint.
+func capturePayload(t *testing.T, conf *config.WebhookConfig, alerts []*types.Alert) []byte {
+	t.Helper()
+
+	var capturedPayload []byte
+	mockTransport := roundTripFunc(func(req *http.Request) *http.Response {
+		var err error
+		capturedPayload, err = io.ReadAll(req.Body)
+		require.NoError(t, err)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       http.NoBody,
+		}
+	})
+
+	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
+	ctx = notify.WithReceiverName(ctx, "test_receiver")
+
+	n, err := New(conf, test.CreateTmpl(t), log.NewNopLogger())
+	require.NoError(t, err)
+	n.client.Transport = mockTransport
+
+	_, err = n.Notify(ctx, alerts...)
+	require.NoError(t, err)
+	require.NotEmpty(t, capturedPayload)
+
+	return capturedPayload
+}
+
+// TestWebhookDefaultPayload tests that the default payload sent by the webhook
+// notifier matches the behaviour before introducing templating.
+func TestWebhookDefaultPayload(t *testing.T) {
+	u, err := url.Parse("http://localhost")
+	require.NoError(t, err)
+
+	conf := &config.WebhookConfig{
+		URL:        &config.SecretURL{URL: u},
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+	}
+
+	alerts := testAlerts()
+	tmpl := test.CreateTmpl(t)
+	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
+	ctx = notify.WithReceiverName(ctx, "test_receiver")
+	data := notify.GetTemplateData(ctx, tmpl, alerts, log.NewNopLogger())
+
+	msg := &Message{
+		Version:  "4",
+		Data:     data,
+		GroupKey: "{}:{alertname=\"test1\"}",
+	}
+
+	var buf bytes.Buffer
+	require.NoError(t, json.NewEncoder(&buf).Encode(msg))
+
+	require.JSONEq(t, buf.String(), string(capturePayload(t, conf, alerts)))
+}
+
+func TestWebhookCustomPayload(t *testing.T) {
+	u, err := url.Parse("http://localhost")
+	require.NoError(t, err)
+
+	conf := &config.WebhookConfig{
+		URL:        &config.SecretURL{URL: u},
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+		Payload: map[string]interface{}{
+			"custom":       `some custom content`,
+			"commonLabels": "{{ .CommonLabels | toJson }}",
+			"status":       "{{ .Status }}",
+			"nested": map[string]interface{}{
+				"alerts": []interface{}{
+					map[string]interface{}{
+						"name": "{{ .CommonLabels.alertname }}",
+					},
+				},
+			},
+		},
+	}
+
+	expected := map[string]interface{}{
+		"custom":       `some custom content`,
+		"commonLabels": map[string]string{"alertname": "TestAlert"},
+		"status":       "resolved",
+		"nested": map[string]interface{}{
+			"alerts": []interface{}{
+				map[string]interface{}{
+					"name": "TestAlert",
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	require.NoError(t, json.NewEncoder(&buf).Encode(expected))
+
+	require.JSONEq(t, buf.String(), string(capturePayload(t, conf, testAlerts())))
 }

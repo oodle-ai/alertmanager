@@ -103,6 +103,14 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		return false, err
 	}
 
+	// Override the payload if a custom one is configured.
+	if n.conf.Payload != nil {
+		buf, err = n.renderPayload(msg)
+		if err != nil {
+			return false, fmt.Errorf("failed to render custom payload: %w", err)
+		}
+	}
+
 	var url string
 	if n.conf.URL != nil {
 		url = n.conf.URL.String()
@@ -136,4 +144,31 @@ func errDetails(body io.Reader, url string) string {
 		return url
 	}
 	return fmt.Sprintf("%s: %s", url, string(bs))
+}
+
+// renderPayload renders the user-supplied custom payload template against the
+// notification data and encodes the result as JSON.
+func (n *Notifier) renderPayload(data *Message) (bytes.Buffer, error) {
+	var (
+		tmplTextErr  error
+		tmplText     = notify.TmplText(n.tmpl, data.Data, &tmplTextErr)
+		tmplTextFunc = func(tmpl string) (string, error) {
+			return tmplText(tmpl), tmplTextErr
+		}
+	)
+
+	rendered := make(map[string]interface{}, len(n.conf.Payload))
+	for k, v := range n.conf.Payload {
+		var err error
+		rendered[k], err = template.DeepCopyWithTemplate(v, tmplTextFunc)
+		if err != nil {
+			return bytes.Buffer{}, err
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(rendered); err != nil {
+		return bytes.Buffer{}, err
+	}
+	return buf, nil
 }
