@@ -835,8 +835,6 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 
 		select {
 		case <-tick.C:
-			level.Info(l).Log("msg", "sending notification", "attempts", i)
-
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
 			dur := time.Since(now)
@@ -848,14 +846,24 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 					level.Error(l).Log("msg", "failed to send notification, retry canceled due to unrecoverable error", "attempts", i, "err", err)
 					return ctx, alerts, fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
 				}
-				level.Warn(l).Log("msg", "failed to send notification, will retry", "attempts", i, "err", err)
+				// Deliberately not logged per attempt: a large fan-out against a
+				// rate-limiting integration retries thousands of times, and one line
+				// each drowns the log. The attempt count is carried by the single
+				// terminal log below, and every attempt is already counted by
+				// notification_requests_total / notification_requests_failed_total.
 				if ctx.Err() == nil {
 					// Save this error to be able to return the last seen error by an
 					// integration upon context timeout.
 					iErr = err
 				}
 			} else {
-				level.Info(l).Log("msg", "sent notification", "attempts", i)
+				if iErr != nil {
+					// Succeeded only after retries: report the last error that caused
+					// them, since the per-attempt logs are suppressed.
+					level.Info(l).Log("msg", "sent notification", "attempts", i, "last_err", iErr)
+				} else {
+					level.Info(l).Log("msg", "sent notification", "attempts", i)
+				}
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():
