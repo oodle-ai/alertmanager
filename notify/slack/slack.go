@@ -218,8 +218,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
 		if resp.StatusCode == http.StatusTooManyRequests {
+			// Not logged: one line per rate-limited attempt is unusable at fan-out
+			// scale. The wait is reflected in notification_latency_seconds, and the
+			// attempt in notification_requests_failed_total.
 			if d := parseRetryAfter(resp.Header.Get("Retry-After")); d > 0 {
-				level.Warn(n.logger).Log("msg", "Rate limited by Slack, waiting before retry", "retry_after_secs", d.Seconds())
 				select {
 				case <-time.After(d):
 				case <-ctx.Done():
