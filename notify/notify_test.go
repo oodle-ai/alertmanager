@@ -544,7 +544,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 	// All alerts are resolved.
 	sent = sent[:0]
 	ctx = WithFiringAlerts(ctx, []uint64{})
-	alerts[1].Alert.EndsAt = time.Now().Add(-time.Hour)
+	alerts[1].EndsAt = time.Now().Add(-time.Hour)
 
 	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.NoError(t, err)
@@ -589,7 +589,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 	// All alerts are resolved.
 	sent = sent[:0]
 	ctx = WithFiringAlerts(ctx, []uint64{})
-	alerts[1].Alert.EndsAt = time.Now().Add(-time.Hour)
+	alerts[1].EndsAt = time.Now().Add(-time.Hour)
 
 	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.NoError(t, err)
@@ -922,7 +922,7 @@ func TestTimeMuteStage(t *testing.T) {
 		outAlerts = append(outAlerts, out...)
 	}
 	for _, alert := range outAlerts {
-		if _, ok := alert.Alert.Labels["mute"]; ok {
+		if _, ok := alert.Labels["mute"]; ok {
 			t.Fatalf("Expected alert to be muted %+v", alert.Alert)
 		}
 	}
@@ -1017,7 +1017,7 @@ func TestTimeActiveStage(t *testing.T) {
 		outAlerts = append(outAlerts, out...)
 	}
 	for _, alert := range outAlerts {
-		if _, ok := alert.Alert.Labels["mute"]; ok {
+		if _, ok := alert.Labels["mute"]; ok {
 			t.Fatalf("Expected alert to be muted %+v", alert.Alert)
 		}
 	}

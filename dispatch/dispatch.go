@@ -526,7 +526,7 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err, "alert", a.String())
 				continue
 			}
-			if a.Resolved() && got.UpdatedAt == a.UpdatedAt {
+			if a.Resolved() && got.UpdatedAt.Equal(a.UpdatedAt) {
 				if err := ag.alerts.Delete(fp); err != nil {
 					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err, "alert", a.String())
 				}

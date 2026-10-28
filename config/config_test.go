@@ -547,7 +547,7 @@ func TestJSONMarshalSecret(t *testing.T) {
 
 	// u003c -> "<"
 	// u003e -> ">"
-	require.Equal(t, "{\"S\":\"\\u003csecret\\u003e\"}", string(c), "Secret not properly elided.")
+	require.JSONEq(t, "{\"S\":\"\\u003csecret\\u003e\"}", string(c), "Secret not properly elided.")
 }
 
 func TestMarshalSecretURL(t *testing.T) {
@@ -645,14 +645,14 @@ func TestUnmarshalNilURL(t *testing.T) {
 		var u URL
 		err := json.Unmarshal(b, &u)
 		require.Error(t, err, "unsupported scheme \"\" for URL")
-		require.Nil(t, nil, u.URL)
+		require.Nil(t, u.URL)
 	}
 
 	{
 		var u URL
 		err := yaml.Unmarshal(b, &u)
 		require.NoError(t, err)
-		require.Nil(t, nil, u.URL) // UnmarshalYAML is not even called when unmarshalling "null".
+		require.Nil(t, u.URL) // UnmarshalYAML is not even called when unmarshalling "null".
 	}
 }
 
@@ -747,7 +747,7 @@ func TestUnmarshalEmptyRegexp(t *testing.T) {
 		err := json.Unmarshal(b, &re)
 		require.NoError(t, err)
 		require.Equal(t, regexp.MustCompile("^(?:)$"), re.Regexp)
-		require.Equal(t, "", re.original)
+		require.Empty(t, re.original)
 	}
 
 	{
@@ -755,7 +755,7 @@ func TestUnmarshalEmptyRegexp(t *testing.T) {
 		err := yaml.Unmarshal(b, &re)
 		require.NoError(t, err)
 		require.Equal(t, regexp.MustCompile("^(?:)$"), re.Regexp)
-		require.Equal(t, "", re.original)
+		require.Empty(t, re.original)
 	}
 }
 
@@ -766,8 +766,8 @@ func TestUnmarshalNullRegexp(t *testing.T) {
 		var re Regexp
 		err := json.Unmarshal(input, &re)
 		require.NoError(t, err)
-		require.Nil(t, nil, re.Regexp)
-		require.Equal(t, "", re.original)
+		require.Equal(t, regexp.MustCompile("^(?:)$"), re.Regexp)
+		require.Empty(t, re.original)
 	}
 
 	{
@@ -775,7 +775,7 @@ func TestUnmarshalNullRegexp(t *testing.T) {
 		err := yaml.Unmarshal(input, &re) // Interestingly enough, unmarshalling `null` in YAML doesn't even call UnmarshalYAML.
 		require.NoError(t, err)
 		require.Nil(t, re.Regexp)
-		require.Equal(t, "", re.original)
+		require.Empty(t, re.original)
 	}
 }
 

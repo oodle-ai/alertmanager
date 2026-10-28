@@ -198,7 +198,7 @@ func (r *Route) ID() string {
 
 	if position > -1 {
 		b.WriteRune('/')
-		b.WriteString(fmt.Sprint(position))
+		fmt.Fprint(&b, position)
 	}
 	return b.String()
 }
