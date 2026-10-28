@@ -55,7 +55,7 @@ func TestGoogleChatRetry(t *testing.T) {
 		retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
 		for statusCode, expected := range test.RetryTests(retryCodes) {
 			actual, _ := notifier.retrier.Check(statusCode, nil)
-			require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+			require.Equal(t, expected, actual, "error on status %d", statusCode)
 		}
 	})
 }
@@ -322,7 +322,7 @@ func TestBuildCard(t *testing.T) {
 	t.Run("empty fields produce no sections", func(t *testing.T) {
 		card := buildCard("Title", "", "", "", "", "")
 		require.NotNil(t, card.Header)
-		require.Len(t, card.Sections, 0)
+		require.Empty(t, card.Sections)
 	})
 
 	t.Run("handles malformed lines", func(t *testing.T) {
@@ -444,8 +444,8 @@ func TestGooglechatCardTruncation(t *testing.T) {
 	u, _ := url.Parse(srv.URL)
 
 	cfg := &config.GoogleChatConfig{
-		URL:        &config.SecretURL{URL: u},
-		HTTPConfig: &commoncfg.HTTPClientConfig{},
+		URL:         &config.SecretURL{URL: u},
+		HTTPConfig:  &commoncfg.HTTPClientConfig{},
 		CardTitle:   "Alert",
 		CardMessage: strings.Repeat("B", maxPayloadBytes+5000),
 	}

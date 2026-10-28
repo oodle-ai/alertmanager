@@ -199,7 +199,7 @@ func (t *AcceptanceTest) Run() {
 
 	err := t.amc.Start()
 	if err != nil {
-		t.T.Fatal(err)
+		t.Fatal(err)
 	}
 
 	// Set the reference time right before running the test actions to avoid
@@ -561,7 +561,7 @@ func (amc *AlertmanagerCluster) SetSilence(at float64, sil *TestSilence) {
 func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 	out, err := am.addSilenceCommand(sil)
 	if err != nil {
-		am.t.T.Errorf("Unable to set silence %v %v", err, string(out))
+		am.t.Errorf("Unable to set silence %v %v", err, string(out))
 	}
 }
 
@@ -584,7 +584,7 @@ func (am *Alertmanager) QuerySilence(match ...string) ([]TestSilence, error) {
 	cmd := exec.Command(amtool, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		am.t.T.Error("Silence query command failed: ", err)
+		am.t.Error("Silence query command failed: ", err)
 	}
 	return parseSilenceQueryResponse(out)
 }

@@ -100,7 +100,8 @@ var (
 		prometheus.GaugeOpts{
 			Name: "alertmanager_inhibition_rules",
 			Help: "Number of configured inhibition rules.",
-		})
+		},
+	)
 	promlogConfig = promlog.Config{}
 )
 

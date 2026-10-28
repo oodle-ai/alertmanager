@@ -323,7 +323,7 @@ func TestSilenceSet(t *testing.T) {
 	}
 	id1, err := s.Set(sil1)
 	require.NoError(t, err)
-	require.NotEqual(t, "", id1)
+	require.NotEmpty(t, id1)
 
 	want := state{
 		id1: &pb.MeshSilence{
@@ -349,7 +349,7 @@ func TestSilenceSet(t *testing.T) {
 	}
 	id2, err := s.Set(sil2)
 	require.NoError(t, err)
-	require.NotEqual(t, "", id2)
+	require.NotEmpty(t, id2)
 
 	want = state{
 		id1: want[id1],

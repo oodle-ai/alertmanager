@@ -237,10 +237,7 @@ var DefaultFuncs = FuncMap{
 			// For numbers without suffix, just format with commas
 			p := message.NewPrinter(language.English)
 			// Remove trailing zeros but keep decimal point if there are remaining decimals
-			s := strings.TrimRight(p.Sprintf("%.3f", f), "0")
-			if strings.HasSuffix(s, ".") {
-				s = strings.TrimSuffix(s, ".")
-			}
+			s := strings.TrimSuffix(strings.TrimRight(p.Sprintf("%.3f", f), "0"), ".")
 			return s, nil
 		}
 
