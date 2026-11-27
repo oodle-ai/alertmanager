@@ -371,7 +371,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, ec := range rcv.EmailConfigs {
-			if ec.Smarthost.String() == "" {
+			// The global SMTP credentials are for the global smarthost. The
+			// notifier sends them in the SMTP AUTH command to the host that it
+			// connects to. Thus a receiver that names its own smarthost must
+			// not get them: whoever controls that host would read them.
+			inheritAuth := ec.Smarthost.String() == ""
+			if inheritAuth {
 				if c.Global.SMTPSmarthost.String() == "" {
 					return errors.New("no global SMTP smarthost set")
 				}
@@ -386,18 +391,20 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if ec.Hello == "" {
 				ec.Hello = c.Global.SMTPHello
 			}
-			if ec.AuthUsername == "" {
-				ec.AuthUsername = c.Global.SMTPAuthUsername
-			}
-			if ec.AuthPassword == "" && ec.AuthPasswordFile == "" {
-				ec.AuthPassword = c.Global.SMTPAuthPassword
-				ec.AuthPasswordFile = c.Global.SMTPAuthPasswordFile
-			}
-			if ec.AuthSecret == "" {
-				ec.AuthSecret = c.Global.SMTPAuthSecret
-			}
-			if ec.AuthIdentity == "" {
-				ec.AuthIdentity = c.Global.SMTPAuthIdentity
+			if inheritAuth {
+				if ec.AuthUsername == "" {
+					ec.AuthUsername = c.Global.SMTPAuthUsername
+				}
+				if ec.AuthPassword == "" && ec.AuthPasswordFile == "" {
+					ec.AuthPassword = c.Global.SMTPAuthPassword
+					ec.AuthPasswordFile = c.Global.SMTPAuthPasswordFile
+				}
+				if ec.AuthSecret == "" {
+					ec.AuthSecret = c.Global.SMTPAuthSecret
+				}
+				if ec.AuthIdentity == "" {
+					ec.AuthIdentity = c.Global.SMTPAuthIdentity
+				}
 			}
 			if ec.RequireTLS == nil {
 				ec.RequireTLS = new(bool)

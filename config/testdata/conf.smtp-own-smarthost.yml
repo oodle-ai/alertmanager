@@ -1,0 +1,26 @@
+global:
+  smtp_smarthost: 'smtp.example.org:587'
+  smtp_from: 'alertmanager@example.org'
+  smtp_auth_username: 'globaluser'
+  smtp_auth_password: 'globalpassword'
+  smtp_auth_secret: 'globalsecret'
+  smtp_auth_identity: 'globalidentity'
+route:
+  receiver: 'email-notifications'
+receivers:
+  - name: 'email-notifications'
+    email_configs:
+      # Uses the global smarthost, thus also the global credentials.
+      - to: 'one@example.org'
+      # Names its own smarthost and no credentials.
+      - to: 'two@example.org'
+        smarthost: 'mail.other.example.net:25'
+      # Names its own smarthost and only a user name.
+      - to: 'three@example.org'
+        smarthost: 'mail.other.example.net:25'
+        auth_username: 'localuser'
+      # Names its own smarthost and its own credentials.
+      - to: 'four@example.org'
+        smarthost: 'mail.other.example.net:25'
+        auth_username: 'localuser'
+        auth_password: 'localpassword'

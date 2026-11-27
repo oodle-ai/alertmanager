@@ -1277,3 +1277,36 @@ func TestNilRegexp(t *testing.T) {
 		})
 	}
 }
+
+// The global SMTP credentials go only to the global smarthost. A receiver
+// that names its own smarthost would otherwise send them to that host.
+func TestGlobalSMTPAuthOnlyForGlobalSmarthost(t *testing.T) {
+	config, err := LoadFile("testdata/conf.smtp-own-smarthost.yml")
+	require.NoError(t, err)
+
+	ecs := config.Receivers[0].EmailConfigs
+	require.Len(t, ecs, 4)
+
+	require.Equal(t, "smtp.example.org:587", ecs[0].Smarthost.String())
+	require.Equal(t, "globaluser", ecs[0].AuthUsername)
+	require.Equal(t, Secret("globalpassword"), ecs[0].AuthPassword)
+	require.Equal(t, Secret("globalsecret"), ecs[0].AuthSecret)
+	require.Equal(t, "globalidentity", ecs[0].AuthIdentity)
+
+	for _, ec := range ecs[1:] {
+		require.Equal(t, "mail.other.example.net:25", ec.Smarthost.String())
+		require.NotEqual(t, "globaluser", ec.AuthUsername, ec.To)
+		require.NotEqual(t, Secret("globalpassword"), ec.AuthPassword, ec.To)
+		require.Empty(t, ec.AuthPasswordFile, ec.To)
+		require.Empty(t, ec.AuthSecret, ec.To)
+		require.Empty(t, ec.AuthIdentity, ec.To)
+		// The other global settings still apply.
+		require.Equal(t, "alertmanager@example.org", ec.From, ec.To)
+	}
+
+	require.Empty(t, ecs[1].AuthUsername)
+	require.Empty(t, ecs[1].AuthPassword)
+	require.Equal(t, "localuser", ecs[2].AuthUsername)
+	require.Empty(t, ecs[2].AuthPassword)
+	require.Equal(t, Secret("localpassword"), ecs[3].AuthPassword)
+}
